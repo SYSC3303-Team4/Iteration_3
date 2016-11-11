@@ -10,7 +10,11 @@
 					this process indefinitely. Designed to allow for the simulation of errors and lost packets in future.
 * 
 * 
-*Update Log:        v1.0.0
+*Update Log:		 v2.0.0
+*						- input methods added (non-isr)
+*						- input now saves to InputStack
+*						- help menu added
+*					 v1.0.0
 *                       - null
 */
 
@@ -20,6 +24,7 @@ import java.io.*;
 import java.net.*;
 
 import ui.ConsoleUI;
+import inputs.*;
 
 
 public class TFTPHost 
@@ -35,6 +40,7 @@ public class TFTPHost
 	private int serverThreadPort;
 	private boolean verbose;
 	private ConsoleUI console;
+	private InputStack inputStack = new InputStack();
 		
 	//declaring local class constants
 	private static final int CLIENT_RECEIVE_PORT = 23;
@@ -164,6 +170,257 @@ public class TFTPHost
 	
 	public void mainPassingLoop()
 	{
+		console.print("TFTPHost Operating...");
+		
+		//declaring local variables
+		boolean runFlag = true;
+		String input[] = null;
+		int packetType, blockNum, delay;
+		
+		//print starting text
+		console.print("type 'help' for command list");
+		console.print("~~~~~~~~~~~ COMMAND LIST ~~~~~~~~~~~");
+		console.print("'help'                                   - print all commands and how to use them");
+		console.print("'clear'                                  - clear screen");
+		console.print("'close'                                 - exit client, close ports, be graceful");
+		console.print("'verbose BOOL'                - toggle verbose mode as true or false");
+		console.print("'test'                                    - runs a test for the console");
+		console.print("'errors'                               - display a summary of all errors to be simulated");
+		console.println();
+		console.print("'delay PT BN DL'              - set a delay for packet type PT, block number BN for DL blocks");
+		console.print("'dup PT BN '                      - duplicate packety type PT, block number BN");
+		console.print("'lose PT BN'                      - lose packet type PT, block number BN");
+		console.println();
+		console.print("'0 PT BN DL'                    - set a delay for packet type PT, block number BN for DL blocks");
+		console.print("'1 PT BN '                         - duplicate packety type PT, block number BN");
+		console.print("'2 PT BN'                          - lose packet type PT, block number BN");
+		console.print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+		console.println();
+		
+		//main input loop
+		while(runFlag && LIT)
+		{
+			//get PARSED user input
+			input = console.getParsedInput(true);
+			
+			//process input based on param number
+			switch(input.length)
+			{
+				case(1):
+					//print commands
+					if (input[0].equals("help"))
+					{
+						console.print("type 'help' for command list");
+						console.print("~~~~~~~~~~~ COMMAND LIST ~~~~~~~~~~~");
+						console.print("'help'                                   - print all commands and how to use them");
+						console.print("'clear'                                  - clear screen");
+						console.print("'close'                                 - exit client, close ports, be graceful");
+						console.print("'verbose BOOL'                - toggle verbose mode as true or false");
+						console.print("'test'                                    - runs a test for the console");
+						console.print("'errors'                               - display a summary of all errors to be simulated");
+						console.println();
+						console.print("'delay PT BN DL'              - set a delay for packet type PT, block number BN for DL blocks");
+						console.print("'dup PT BN '                      - duplicate packety type PT, block number BN");
+						console.print("'lose PT BN'                      - lose packet type PT, block number BN");
+						console.println();
+						console.print("'0 PT BN DL'                    - set a delay for packet type PT, block number BN for DL blocks");
+						console.print("'1 PT BN '                         - duplicate packety type PT, block number BN");
+						console.print("'2 PT BN'                          - lose packet type PT, block number BN");
+						console.print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+						console.println();
+					}
+					//display inputs
+					else if (input[0].equals("errors"))
+					{
+						console.print(inputStack.toFancyString());
+					}
+					//run the console
+					else if (input[0].equals("run"))
+					{
+						/*
+						 * TODO ADD ERROR SIMULATING STUFF
+						 */
+					}
+					//clear console
+					else if (input[0].equals("clear"))
+					{
+						console.clear();
+					}
+					//close console with grace
+					else if (input[0].equals("close"))
+					{
+						console.print("Closing with grace.... [NEEDS TO BE FIXED]");
+						runFlag = false;
+						//this.close();
+						System.exit(0);
+					}
+					//run simple console test
+					else if (input[0].equals("test"))
+					{
+						console.testAll();
+					}
+					//BAD INPUT
+					else
+					{
+						console.print("! Unknown Input !");
+					}
+					break;
+					
+				case(2):
+					//toggle verbose
+					if (input[0].equals("verbose"))
+					{
+						if (input[1].equals("true"))
+						{
+							verbose = true;
+						}
+						else if (input[1].equals("false"))
+						{
+							verbose = false;
+						}
+						else
+						{
+							console.print("! Unknown Input !");
+						}
+					}
+					break;
+				
+				case(3):
+					//duplicate packet
+					if(input[0].equals("dup") || input[0].equals("1"))
+					{
+						//convert verbs from string to int
+						try
+						{
+							if (input[1].equals("data"))
+							{
+								packetType = 3;
+							}
+							else if (input[1].equals("ack"))
+							{
+								packetType = 4;
+							}
+							else
+							{
+								packetType = Integer.parseInt(input[1]);
+							}
+							blockNum = Integer.parseInt(input[2]);
+							
+							//add to inputStack
+							inputStack.push(1, packetType, blockNum, 0);
+						}
+						catch (NumberFormatException nfe)
+						{
+							console.printError("Error 2 - NAN");
+						}
+					}
+					//lost packet
+					else if (input[0].equals("lose") || input[0].equals("2"))
+					{
+						//convert verbs from string to int
+						try
+						{
+							if (input[1].equals("data"))
+							{
+								packetType = 3;
+							}
+							else if (input[1].equals("ack"))
+							{
+								packetType = 4;
+							}
+							else
+							{
+								packetType = Integer.parseInt(input[1]);
+							}
+							blockNum = Integer.parseInt(input[2]);
+							
+							//add to inputStack
+							inputStack.push(2, packetType, blockNum, 0);
+						}
+						catch (NumberFormatException nfe)
+						{
+							console.printError("Error 2 - NAN");
+						}
+					}
+					else
+					{
+						console.print("! Unknown Input !");
+					}
+					break;
+				
+				case(4):
+					//delay packet
+					if(input[0].equals("delay") || input[0].equals("0"))
+					{
+						//convert verbs from string to int
+						try
+						{
+							if (input[1].equals("data"))
+							{
+								packetType = 3;
+							}
+							else if (input[1].equals("ack"))
+							{
+								packetType = 4;
+							}
+							else
+							{
+								packetType = Integer.parseInt(input[1]);
+							}
+							blockNum = Integer.parseInt(input[2]);
+							delay = Integer.parseInt(input[3]);
+							
+							//add to inputStack
+							inputStack.push(0, packetType, blockNum, delay);
+						}
+						catch (NumberFormatException nfe)
+						{
+							console.printError("Error 2 - NAN");
+						}
+					}
+					//bad input
+					else
+					{
+						console.print("! Unknown Input !");
+					}
+					break;
+				
+				default:
+					console.print("! Unknown Input !");
+					break;
+			}
+		}
+	}
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		/*
+		 * ############## THIS IS OLD CODE WHICH ALLOWS HOST
+		 * ############## TO TRANSPARENTLY PASS PACKETS
+		 * ##############		+5 SCRAP VALUE
+		 */
+		
+		/*
 		console.print("Console Operating...");
 		
 		while(LIT)
@@ -284,39 +541,7 @@ public class TFTPHost
 		
 		//run
 		host.mainPassingLoop();
-		
-		
-		
-		
-		/*
-		while(true)
-		{
-			//wait for client's packet (save clients port)
-			host.receiveAndEcho(host.getInSocket());
-			host.setClientPort(host.getReceivedPacket().getPort());
-			//console.print("\n>> " + host.getClientPort());
-			
-			//send packet to server and wait for response
-			host.sendAndEcho(SERVER_RECEIVE_PORT, host.getGeneralSocket());
-			host.receiveAndEcho(host.getGeneralSocket());
-			
-			//prep socket to use for sending datagram packet
-			//create temp socket, random port
-			try
-			{
-				host.setOutSocket(new DatagramSocket());
-			}
-			catch(SocketException se)
-			{
-				se.printStackTrace();
-				System.exit(1);
-			}
-			
-			//send packet to client
-			host.sendAndEcho(host.getClientPort(), host.getOutSocket());
-			console.print("----------------------------------------\n");
-		}
-		*/
 	}
+	*/
 
 }
