@@ -131,7 +131,7 @@ ERROR | 05    |  ErrorCode |   ErrMsg   |   0  |
 	    		errorMsg = "File not found.";
 	    		break;
 	    	case 2: 
-	    		errorCode = 2;
+	    		errorCode = 2; 
 	    		console.print("Server: Access violation, sending error packet");
 	    		errorMsg = "Access violation.";
 	    		break;

@@ -261,7 +261,7 @@ class TFTPWriteThread extends ServerThread
 			       }
 					/* Exit Gracefully if the stop is requested. */
 				 if(isInterrupted()){continue;}
-				 if(verbose){
+				 if(verbose){ 
 			       console.print("Server: packet sent using port " + sendReceiveSocket.getLocalPort()+"\n");
 				 }
 		     }

@@ -510,7 +510,7 @@ public class TFTPClient extends JFrame
 				rawData = receivedPacket.getData();
 				procData = new byte[receivedPacket.getLength() - DATA_OFFSET];
 	
-				int reLen = receivedPacket.getLength();
+				int reLen = receivedPacket.getLength(); 
 				for(int i=0; i<reLen-DATA_OFFSET; i++)
 				{
 					procData[i] = rawData[i+DATA_OFFSET];

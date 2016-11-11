@@ -98,7 +98,7 @@ class TFTPReadThread  extends ServerThread
 			ByteArrayOutputStream mode = new ByteArrayOutputStream();
 			boolean change = false; 
 			for(int i = 2; i<receivePacket.getData().length;i++){
-				if(isInterrupted()){exitGraceFully(); return;}
+				if(isInterrupted()){exitGraceFully(); return;} 
 				if(receivePacket.getData()[i]>=32){
 					if(change == false){
 						filename.write(receivePacket.getData()[i]);
