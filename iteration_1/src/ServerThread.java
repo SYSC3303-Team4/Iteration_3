@@ -12,7 +12,7 @@ public abstract class ServerThread extends Thread{
 	protected DatagramSocket sendReceiveSocket;
 	protected ConsoleUI console;
 	//INIT socket timeout variables
-	protected static final int TIMEOUT = 5; //Seconds
+	protected static final int TIMEOUT = 1; //Seconds
 	protected static final int MAX_TIMEOUTS = 5;
 	protected int timeouts = 0;
 	protected boolean retransmit = false;

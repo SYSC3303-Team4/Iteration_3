@@ -80,6 +80,12 @@ class TFTPWriteThread extends ServerThread
 			e.printStackTrace();
 			console.print(e.getMessage());
 		}
+		try {
+			sendReceiveSocket.setSoTimeout(TIMEOUT*1000);
+		} catch (SocketException e) {
+			//Handle Timeout Exception
+			e.printStackTrace();
+		}
     }
 
     public void run() {
@@ -140,7 +146,7 @@ class TFTPWriteThread extends ServerThread
 				   System.exit(1);
 			       }
 			        /* Exit Gracefully if the stop is requested. */
-					if(isInterrupted()){exitGraceFully();}
+					if(isInterrupted()){exitGraceFully(); return;}
 					if(verbose){
 			       console.print("Server: packet sent using port " + sendReceiveSocket.getLocalPort()+"\n");
 					}
@@ -169,8 +175,9 @@ class TFTPWriteThread extends ServerThread
 						//Retransmit every timeout
 						//Quite after 5 timeouts
 						timeouts++;
-						if(timeouts == 5){
+						if(timeouts == MAX_TIMEOUTS){
 							exitGraceFully();
+							return;
 						}
 						retransmit = true;
 					}
@@ -219,8 +226,11 @@ class TFTPWriteThread extends ServerThread
 			    	   console.print("Server: Final Data Block Received.");
 			    	   console.print("Server: Sending last ACK");
 			    	   //SET INTERRUPT TO EXIT LOOP
-			    	   exitGraceFully();
+			    	   
 			    	   }
+			    	   
+			    	   exitGraceFully();
+			    	   return;
 			       }
 	
 			       //Sending the ACK for previous DATA packet in format:
@@ -259,6 +269,7 @@ class TFTPWriteThread extends ServerThread
 	    }
 	    console.print("Server: thread closing.");
 	    exitGraceFully();
+	    return;
     }
     
 

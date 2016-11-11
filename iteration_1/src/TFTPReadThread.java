@@ -54,7 +54,6 @@ class TFTPReadThread  extends ServerThread
 	//INIT general variables
 	private DatagramPacket receivePacket;
 	private DatagramPacket sendPacket;
-	private DatagramSocket sendReceiveSocket;
 	private boolean verbose;
 	private static int blockNumber = 1;
 	boolean sendZeroDataPacket = false;
@@ -99,7 +98,7 @@ class TFTPReadThread  extends ServerThread
 			ByteArrayOutputStream mode = new ByteArrayOutputStream();
 			boolean change = false; 
 			for(int i = 2; i<receivePacket.getData().length;i++){
-				if(isInterrupted()){exitGraceFully();}
+				if(isInterrupted()){exitGraceFully(); return;}
 				if(receivePacket.getData()[i]>=32){
 					if(change == false){
 						filename.write(receivePacket.getData()[i]);
@@ -126,8 +125,9 @@ class TFTPReadThread  extends ServerThread
 			}
 			
 			File file = new File(filename.toString());
-			if(file.canRead() == false){
-				buildError(2,receivePacket,verbose);
+			if(file.exists()== false)
+			{
+				buildError(1,receivePacket,verbose);
 				return;
 			}
 	
@@ -228,8 +228,9 @@ class TFTPReadThread  extends ServerThread
 						//Retransmit every timeout
 						//Quite after 5 timeouts
 						timeouts++;
-						if(timeouts == 5){
+						if(timeouts == MAX_TIMEOUTS){
 							exitGraceFully();
+							return;
 						}
 						retransmit = true;
 					}
@@ -268,6 +269,7 @@ class TFTPReadThread  extends ServerThread
 			}
 			console.print("Server: thread closing.");
 			exitGraceFully();
+			return;
 		}
 
 	}
