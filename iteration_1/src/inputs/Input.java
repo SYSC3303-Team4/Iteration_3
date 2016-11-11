@@ -9,6 +9,7 @@
 * 
 * 
 *Update Log:		v1.0.1
+*						- fancy input made fancier
 *						- added packetType
 *						- added human readability to toStringFancy()
 *					v1.0.0
@@ -91,10 +92,10 @@ public class Input
 			case(2):
 				printable = printable + "WRQ packet ";
 				break;
-			case(3):
+			case(4):
 				printable = printable + "ACK packet ";
 				break;
-			case(4):
+			case(3):
 				printable = printable + "DATA packet ";
 				break;
 			default:
@@ -104,7 +105,7 @@ public class Input
 		printable = printable + blockNum;
 		if(mode == 0)
 		{
-			printable = printable + " for " + delay + "block nums";
+			printable = printable + " for " + delay + "ms";
 		}
 		
 		return printable;

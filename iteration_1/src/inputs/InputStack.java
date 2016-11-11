@@ -9,7 +9,7 @@
 * 
 * 
 *Update Log:		v1.0.1
-*						- added human readable thing
+*						- added human readable print
 *					v1.0.0
 *						- very basic implementation of framework v1.0.0
 */
