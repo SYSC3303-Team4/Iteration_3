@@ -67,7 +67,7 @@ public class TFTPHost
 		}
 		
 		//initialize echo --> off
-		verbose = false;
+		verbose = true;
 		
 		//run UI
 		console = new ConsoleUI("Error Simulator");
@@ -139,10 +139,45 @@ public class TFTPHost
 	}
 	
 	
-	//send packet to server and wait for server response
-	/**
-	 * 
-	 */
+	//receive packet on inPort
+	public void receiveDatagramTimeout(DatagramSocket inputSocket, int timeOut) throws IOException
+	{
+		//construct an empty datagram packet for receiving purposes
+		byte[] arrayholder = new byte[MAX_SIZE];
+		receivedPacket = new DatagramPacket(arrayholder, arrayholder.length);
+		try
+		{
+			inputSocket.setSoTimeout(timeOut);
+		}
+		catch (SocketException ioe)
+		{
+			console.printError("Cannot set socket timeout");
+		}
+		
+		//wait for incoming data
+		console.print("Waiting for data...");
+		inputSocket.receive(receivedPacket);
+
+		
+		//deconstruct packet and print contents
+		console.print("Packet successfully received");
+		if (verbose)
+		{
+			printDatagram(receivedPacket);
+		}
+		//reset delay
+		try
+		{
+			inputSocket.setSoTimeout(0);
+		}
+		catch (SocketException ioe)
+		{
+			console.printError("Cannot set socket timeout");
+		}
+	}
+	
+	
+	//send packet
 	public void sendDatagram(int outPort, DatagramSocket socket)
 	{
 		//prep packet to send
@@ -164,11 +199,238 @@ public class TFTPHost
 			System.exit(1);
 		}
 		console.print("Packet successfully sent");
-		
 	}
 	
 	
-	public void mainPassingLoop()
+	public void sendDatagramTimeout(int outPort, DatagramSocket socket, int delay) throws SocketException
+	{
+		//prep packet to send
+		console.print("Sending packet...");
+		sentPacket = receivedPacket;
+		sentPacket.setPort(outPort);
+		socket.setSoTimeout(delay);
+				
+		//print contents
+		if(verbose)
+		{
+			printDatagram(sentPacket);
+		}
+		
+		//send packet
+		try
+		{
+			socket.send(sentPacket);
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+			System.exit(1);
+		}
+		console.print("Packet successfully sent");
+		
+		//reset socket for no timeout
+		socket.setSoTimeout(0);
+	}
+	
+	
+	public void performOneTransfer()
+	{
+		/*
+		 * ############## THIS IS OLD CODE WHICH ALLOWS HOST
+		 * ############## TO TRANSPARENTLY PASS PACKETS
+		 * ##############		+5 SCRAP VALUE
+		 */
+		
+		//declaring local variables
+		byte RWReq=0;
+		boolean loop=true;
+		int lastDataPacketLength=0;
+		Input stackTop = null;
+		int blockNum = 0;
+		byte packetType = 0;
+		byte[] data;
+		
+		//wait for original RRQ/WRQ from client
+		receiveDatagram(inSocket);
+		//save port 
+		clientPort = receivedPacket.getPort();
+	
+		//determine if this is a valid RRQ/WRQ
+		data = new byte[2];
+		data = receivedPacket.getData();
+		//valid
+		if (data[0] == 0 && (data[1] == 1 || data[1] == 2) )
+		{
+			RWReq = data[1];
+		}
+		//something awful has happened
+		else
+		{
+			console.print("Something awful happend");
+			System.exit(0);
+		}
+		
+		//send RRQ/WRQ to server
+		sendDatagram(SERVER_RECEIVE_PORT, generalServerSocket);
+		
+		//receive 1st packet
+		receiveDatagram(generalServerSocket);
+		serverThreadPort = receivedPacket.getPort();
+		
+		
+		//do the rest if RRQ
+		if(RWReq == 1)
+		{
+			while(loop)
+			{
+				//check if any errors exist [SERVER DATA PACKET]
+				if(inputStack.peek() != null)
+				{
+					data = receivedPacket.getData();
+					//get received packet blockNum and packetType
+					packetType = (receivedPacket.getData())[1];
+					blockNum = ((data[2] & 0xFF) << 8) | (data[3] & 0xFF);
+					System.out.println("blockNum decoded as: " + blockNum);		//DEBUG
+					
+					//check if error needs to be simulated for this packet
+					stackTop = inputStack.peek();
+					if(stackTop.getBlockNum() == blockNum && stackTop.getPacketType() == packetType)
+					{
+						stackTop = inputStack.pop();
+						
+						//determine what error needs to be simulated
+						switch(stackTop.getMode())
+						{
+							//delay packet
+							case(0):
+									/*
+									try
+									{
+										Thread.sleep(stackTop.getDelay());
+									}
+									catch(InterruptedException e)
+									{
+										//error
+										System.out.println("ERROR");
+									}
+									*/
+									break;
+							
+							//duplicate SERVER DATA PACKET
+							case(1):
+									//set a buffer of length 2 for packet
+									 DatagramPacket packetToDuplicate = receivedPacket;
+									 DatagramPacket storedAck;
+							
+									//send datagram to clientPort
+									sendDatagram(clientPort, generalClientSocket);
+									//wait for ACK
+									receiveDatagram(generalClientSocket);
+									storedAck = receivedPacket;
+									sentPacket = packetToDuplicate;
+									//send duplicate
+									console.print("Sending duplicate to client...");
+									try
+									{
+										sendDatagramTimeout(clientPort, generalClientSocket, 50);
+										//should never get here
+										console.printError("Client Responds to Duplicate");
+										System.exit(1);
+									}
+									catch (IOException ioe)
+									{
+										if (verbose)
+										{
+											console.print("No response from client with duplicate");
+											try
+											{
+												generalClientSocket.setSoTimeout(0);
+											}
+											catch (SocketException se)
+											{
+												console.printError("Cannot set socket timeout");
+											}
+										}
+									}
+									break;
+							
+							//loose
+							case(2):
+									
+									break;
+						}
+					}
+				}
+				
+				//save packet size if of type DATA
+				if ( (receivedPacket.getData())[1] == 3)
+				{
+					lastDataPacketLength = receivedPacket.getLength();
+				}
+				//send DATA to client
+				sendDatagram(clientPort, generalClientSocket);
+				//receive client ACK
+				receiveDatagram(generalClientSocket);
+				//send ACK to server
+				sendDatagram(serverThreadPort, generalServerSocket);
+				
+				//receive more data and loop if datagram.size==516
+				//final ack sent to server, data transfer complete
+				if (lastDataPacketLength < MAX_SIZE)
+				{
+					console.print("Data Transfer Complete");
+					console.println();
+					loop = false;
+				}
+				//more data left, receive and loop back
+				else
+				{
+					receiveDatagram(generalServerSocket);
+				}
+			}
+		}
+		//do the rest if WRQ
+		else
+		{
+			while(loop)
+			{
+				//send ACK to client
+				sendDatagram(clientPort, generalClientSocket);
+				//receive client DATA, save size
+				receiveDatagram(generalClientSocket);
+				if ( (receivedPacket.getData())[1] == 3)
+				{
+					lastDataPacketLength = receivedPacket.getLength();
+				}
+				//send DATA to server
+				sendDatagram(serverThreadPort, generalServerSocket);
+				
+				//final DATA sent, receive and fwd final ACK
+				if (lastDataPacketLength < MAX_SIZE)
+				{
+					//receive final server ACK
+					receiveDatagram(generalServerSocket);
+					//fwd ACK to clien
+					sendDatagram(clientPort, generalClientSocket);
+				
+					//terminate transfer
+					console.print("Data Transfer Complete");
+					console.println();
+					loop = false;
+				}
+				//there are still DATA packets to pass, transfer not compelte 
+				else
+				{
+					//receive server ACK
+					receiveDatagram(generalServerSocket);
+				}
+			}
+		}
+	}
+	
+	
+	
+	public void mainInputLoop()
 	{
 		console.print("TFTPHost Operating...");
 		
@@ -237,9 +499,15 @@ public class TFTPHost
 					//run the console
 					else if (input[0].equals("run"))
 					{
-						/*
-						 * TODO ADD ERROR SIMULATING STUFF
-						 */
+						if(verbose)
+						{
+							console.print("Running host, simulating error list:");
+							console.print(inputStack.toFancyString());
+							console.println();
+						}
+						
+						//run for 1 transfer
+						performOneTransfer();
 					}
 					//clear console
 					else if (input[0].equals("clear"))
@@ -391,148 +659,7 @@ public class TFTPHost
 			}
 		}
 	}
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		/*
-		 * ############## THIS IS OLD CODE WHICH ALLOWS HOST
-		 * ############## TO TRANSPARENTLY PASS PACKETS
-		 * ##############		+5 SCRAP VALUE
-		 */
-		
-		/*
-		console.print("Console Operating...");
-		
-		while(LIT)
-		{
-			//declaring local variables
-			byte RWReq=0;
-			boolean loop=true;
-			int lastDataPacketLength=0;
-			
-			//wait for original RRQ/WRQ from client
-			receiveDatagram(inSocket);
-			//save port 
-			clientPort = receivedPacket.getPort();
-		
-			//determine if this is a valid RRQ/WRQ
-			byte[] data = new byte[2];
-			data = receivedPacket.getData();
-			//valid
-			if (data[0] == 0 && (data[1] == 1 || data[1] == 2) )
-			{
-				RWReq = data[1];
-			}
-			//something awful has happened
-			else
-			{
-				console.print("Something awful happend");
-				System.exit(0);
-			}
-			
-			//send RRQ/WRQ to server
-			sendDatagram(SERVER_RECEIVE_PORT, generalServerSocket);
-			
-			//receive 1st packet
-			receiveDatagram(generalServerSocket);
-			serverThreadPort = receivedPacket.getPort();
-			
-			
-			//do the rest if RRQ
-			if(RWReq == 1)
-			{
-				while(loop)
-				{
-					//save packet size if of type DATA
-					if ( (receivedPacket.getData())[1] == 3)
-					{
-						lastDataPacketLength = receivedPacket.getLength();
-					}
-					//send DATA to client
-					sendDatagram(clientPort, generalClientSocket);
-					//receive client ACK
-					receiveDatagram(generalClientSocket);
-					//send ACK to server
-					sendDatagram(serverThreadPort, generalServerSocket);
-					
-					//receive more data and loop if datagram.size==516
-					//final ack sent to server, data transfer complete
-					if (lastDataPacketLength < MAX_SIZE)
-					{
-						console.print("Data Transfer Complete");
-						console.println();
-						loop = false;
-					}
-					//more data left, receive and loop back
-					else
-					{
-						receiveDatagram(generalServerSocket);
-					}
-				}
-			}
-			//do the rest if WRQ
-			else
-			{
-				while(loop)
-				{
-					//send ACK to client
-					sendDatagram(clientPort, generalClientSocket);
-					//receive client DATA, save size
-					receiveDatagram(generalClientSocket);
-					if ( (receivedPacket.getData())[1] == 3)
-					{
-						lastDataPacketLength = receivedPacket.getLength();
-					}
-					//send DATA to server
-					sendDatagram(serverThreadPort, generalServerSocket);
-					
-					//final DATA sent, receive and fwd final ACK
-					if (lastDataPacketLength < MAX_SIZE)
-					{
-						//receive final server ACK
-						receiveDatagram(generalServerSocket);
-						//fwd ACK to clien
-						sendDatagram(clientPort, generalClientSocket);
-					
-						//terminate transfer
-						console.print("Data Transfer Complete");
-						console.println();
-						loop = false;
-					}
-					//there are still DATA packets to pass, transfer not compelte 
-					else
-					{
-						//receive server ACK
-						receiveDatagram(generalServerSocket);
-					}
-				}
-			}
-				
-		}
-		
-		
-	}
-	
+
 	
 	public static void main(String[] args) 
 	{
@@ -540,8 +667,6 @@ public class TFTPHost
 		TFTPHost host = new TFTPHost();
 		
 		//run
-		host.mainPassingLoop();
+		host.mainInputLoop();
 	}
-	*/
-
 }

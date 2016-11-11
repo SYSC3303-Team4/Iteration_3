@@ -142,9 +142,9 @@ public class TFTPClient extends JFrame
 			System.exit(1);
 		}
 		//initialize echo --> off
-		verbose = false;
+		verbose = true;
 		//initialize test mode --> off
-		outPort = IN_PORT_SERVER ;
+		outPort = IN_PORT_HOST ;
 		//make an empty reader
 		reader = new TFTPReader();
 		//make an empty writer

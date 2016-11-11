@@ -59,6 +59,7 @@ class TFTPWriteThread extends ServerThread
     private int blockNumber = 0;
 	private boolean verbose;
     private String threadNumber;
+    private boolean finalACK = false;
     File file;
 
     public static final byte[] response = {0, 4, 0, 0};
@@ -122,7 +123,7 @@ class TFTPWriteThread extends ServerThread
 				   0,mode.toByteArray().length) + "\n");
 			}
     	
-	       while(!isInterrupted()){
+	       while(!finalACK){
 	
 	
 			   //Build and send the first ACK reply in format:
@@ -170,6 +171,7 @@ class TFTPWriteThread extends ServerThread
 		       // Block until a datagram packet is received from receiveSocket.
 		       try {
 		    	   sendReceiveSocket.receive(receivePacket1);
+		    	   retransmit = false;
 		       } catch (IOException e) {
 					if (e instanceof SocketTimeoutException){
 						//Retransmit every timeout
@@ -228,9 +230,7 @@ class TFTPWriteThread extends ServerThread
 			    	   //SET INTERRUPT TO EXIT LOOP
 			    	   
 			    	   }
-			    	   
-			    	   exitGraceFully();
-			    	   return;
+			    	   finalACK = true;
 			       }
 	
 			       //Sending the ACK for previous DATA packet in format:
@@ -245,31 +245,33 @@ class TFTPWriteThread extends ServerThread
 				   response[3]=receivePacket1.getData()[3];
 				   blockNumber++;
 	
+		       }
 				   
-				   
-			       sendPacket = new DatagramPacket(response, response.length,
-						     receivePacket.getAddress(), receivePacket.getPort());
-					/* Exit Gracefully if the stop is requested. */
-				   if(isInterrupted()){continue;}
-				   printSendPacket(sendPacket,verbose);
-	
-			       try {
-			    	   sendReceiveSocket.send(sendPacket);
-			       } catch (IOException e) {
-				  e.printStackTrace();
-				  System.exit(1);
-			       }
-					/* Exit Gracefully if the stop is requested. */
-				 if(isInterrupted()){continue;}
-				 if(verbose){ 
-			       console.print("Server: packet sent using port " + sendReceiveSocket.getLocalPort()+"\n");
-				 }
-		     }
+		       sendPacket = new DatagramPacket(response, response.length,
+					     receivePacket.getAddress(), receivePacket.getPort());
+				/* Exit Gracefully if the stop is requested. */
+			   
+			   printSendPacket(sendPacket,verbose);
+
+		       try {
+		    	   sendReceiveSocket.send(sendPacket);
+		       } catch (IOException e) {
+			  e.printStackTrace();
+			  System.exit(1);
+		       }
+				/* Exit Gracefully if the stop is requested. */
+			 
+			 if(verbose){ 
+		       console.print("Server: packet sent using port " + sendReceiveSocket.getLocalPort()+"\n");
+			 }
+				 
+				 
+		     
 	       
 	    }
 	    console.print("Server: thread closing.");
 	    exitGraceFully();
-	    return;
+	    
     }
     
 

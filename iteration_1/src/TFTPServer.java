@@ -31,7 +31,7 @@ public class TFTPServer implements ActionListener
 	// UDP datagram packets and sockets used to send / receive
 	private DatagramPacket sendPacket, receivePacket;
 	private DatagramSocket receiveSocket, sendSocket;
-	private static boolean verbose = false;
+	private static boolean verbose = true;
 	private static Scanner scan= new Scanner(System.in);
 	private ConsoleUI console;
     private JTextArea fileChooserFrame;
