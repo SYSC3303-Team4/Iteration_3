@@ -31,8 +31,8 @@ public class TFTPHost
 {
 	
 	//declaring local instance variables
-	private DatagramPacket sentPacket;
-	private DatagramPacket receivedPacket;
+	private DatagramPacket sentPacket;				//slowly phase out
+	private DatagramPacket receivedPacket;			//slowly phase out
 	private DatagramSocket inSocket;
 	private DatagramSocket generalClientSocket;
 	private DatagramSocket generalServerSocket;
@@ -98,6 +98,71 @@ public class TFTPHost
 	}
 	
 	
+	//send datagram
+	private void send(int outPort, DatagramSocket socket, int delay, DatagramPacket toSend) throws SocketException
+	{
+		//prep packet to send
+		console.print("Sending packet...");
+		sentPacket = receivedPacket;
+		toSend.setPort(outPort);
+		socket.setSoTimeout(delay);
+				
+		//print contents
+		if(verbose)
+		{
+			printDatagram(toSend);
+		}
+		
+		//send packet
+		try
+		{
+			socket.send(toSend);
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+			//System.exit(1);
+		}
+		console.print("Packet successfully sent");
+		
+		//reset socket for no timeout
+		socket.setSoTimeout(0);
+	}
+	
+	//receive datagram
+	public DatagramPacket receive(DatagramSocket inputSocket, int timeOut) throws IOException
+	{
+		//construct an empty datagram packet for receiving purposes
+		byte[] arrayholder = new byte[MAX_SIZE];
+		DatagramPacket incommingPacket = new DatagramPacket(arrayholder, arrayholder.length);
+		
+		//set delay
+		try
+		{
+			inputSocket.setSoTimeout(timeOut);
+		}
+		catch (SocketException ioe)
+		{
+			console.printError("Cannot set socket timeout");
+		}
+		
+		//wait for incoming data
+		console.print("Waiting for data...");
+		inputSocket.receive(incommingPacket);
+
+		
+		//deconstruct packet and print contents
+		console.print("Packet successfully received");
+		if (verbose)
+		{
+			printDatagram(receivedPacket);
+		}
+		
+		return incommingPacket;
+	}
+	
+	
+	
 	//print datagram contents
 	private void printDatagram(DatagramPacket datagram)
 	{
@@ -130,7 +195,7 @@ public class TFTPHost
 		{
 			System.out.print("Incoming socket timed out\n" + e);
 			e.printStackTrace();
-			System.exit(1);
+			//System.exit(1);
 		}
 		
 		//deconstruct packet and print contents
@@ -202,35 +267,7 @@ public class TFTPHost
 	}
 	
 	
-	public void sendDatagramTimeout(int outPort, DatagramSocket socket, int delay) throws SocketException
-	{
-		//prep packet to send
-		console.print("Sending packet...");
-		sentPacket = receivedPacket;
-		sentPacket.setPort(outPort);
-		socket.setSoTimeout(delay);
-				
-		//print contents
-		if(verbose)
-		{
-			printDatagram(sentPacket);
-		}
-		
-		//send packet
-		try
-		{
-			socket.send(sentPacket);
-		}
-		catch (IOException e)
-		{
-			e.printStackTrace();
-			System.exit(1);
-		}
-		console.print("Packet successfully sent");
-		
-		//reset socket for no timeout
-		socket.setSoTimeout(0);
-	}
+	
 	
 	
 	public void performOneTransfer()
@@ -328,14 +365,16 @@ public class TFTPHost
 									receiveDatagram(generalClientSocket);
 									storedAck = receivedPacket;
 									sentPacket = packetToDuplicate;
+									
 									//send duplicate
 									console.print("Sending duplicate to client...");
+									
 									try
 									{
-										sendDatagramTimeout(clientPort, generalClientSocket, 50);
+										receiveDatagramTimeout(generalClientSocket, 50);
 										//should never get here
 										console.printError("Client Responds to Duplicate");
-										System.exit(1);
+										//System.exit(1);
 									}
 									catch (IOException ioe)
 									{
