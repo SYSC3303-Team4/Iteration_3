@@ -22,6 +22,7 @@
 //imports
 import java.io.*;
 import java.net.*;
+import java.util.concurrent.TimeUnit;
 
 import javax.swing.JFileChooser;
 import javax.swing.JTextArea;
@@ -201,6 +202,12 @@ public class TFTPHost
 	public void delayPack(int delay, int clientPort,DatagramSocket  generalClientSocket)
 	{
 		System.out.println("IN DELAY PACKET, SENDING REGULARALY");
+		try {
+			TimeUnit.SECONDS.sleep(delay);
+		} catch (InterruptedException e) {
+			console.print("This shouldn't have happened.");
+			e.printStackTrace();
+		}
 		sendDatagram(clientPort, generalClientSocket);
 	}
 	
