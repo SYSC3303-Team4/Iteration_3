@@ -59,7 +59,7 @@ public class Input
 	//print as string
 	public String toString()
 	{
-		return ("BlockNum: " + blockNum + "PacketType: " + packetType + " || Mode: " + mode + " || Delay: " + delay);
+		return ("BlockNum: " + blockNum + " || PacketType: " + packetType + " || Mode: " + mode + " || Delay: " + delay);
 	}
 	
 	

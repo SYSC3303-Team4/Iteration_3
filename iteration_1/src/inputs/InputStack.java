@@ -8,7 +8,11 @@
 *Purpose:           Sorted stack of input strings. Sorted in terms of block num
 * 
 * 
-*Update Log:		v1.0.1
+*Update Log:		v2.0.0
+*						- sorting now occurs after entire stack is created
+*						- sorting based on RRQ or WRQ
+*						- clear method
+*					v1.0.1
 *						- added human readable thing
 *					v1.0.0
 *						- very basic implementation of framework v1.0.0
@@ -16,6 +20,7 @@
 package inputs;
 
 
+import java.util.Collections;
 //import stuff
 import java.util.LinkedList;
 
@@ -41,7 +46,72 @@ public class InputStack
 	}
 	
 	
-	//push to stack with sort
+	//clear the InputStack
+	public void clear()
+	{
+		pseudoStack.clear();
+	}
+	
+	
+	//sort with DATA > ACK in case of blockNum tie
+	public void sortRRQ()
+	{
+		resolveTies(false);
+	}
+	
+	
+	//sort with ACK > DATA in case of blockNum tie
+	public void sortWRQ()
+	{
+		resolveTies(true);
+	}
+	
+	
+	//general case for sort-with-tie
+	private void resolveTies(boolean WRQ)
+	{
+		//declaring local variables
+		Input inputInList = null;
+		Input nextInput = null;
+		
+		//iterate through stack except for end
+		for (int i=0; i<length-1; i++)
+		{
+			//get input at index i
+			inputInList = pseudoStack.get(i);
+			nextInput = pseudoStack.get(i+1);
+
+			//check if there is a tie case between i and i+1
+			if(inputInList.getBlockNum() == nextInput.getBlockNum())
+			{
+				if(WRQ)
+				{
+					/*          i              i+1
+			              inputInList      nextInput
+			   		 ... ---> DATA --------> ACK --> ...
+					*/
+					if (inputInList.getPacketType() == 3 && nextInput.getPacketType() == 4)
+					{
+
+					}
+				}
+				else
+				{
+					/*          i              i+1
+			               inputInList      nextInput
+			   		  ... ---> ACK ----------> DATA --> ...
+					*/
+					if (inputInList.getPacketType() == 4 && nextInput.getPacketType() == 3)
+					{
+						Collections.swap(pseudoStack, i, i+1);
+					}
+				}
+			}
+		}
+	}
+	
+	
+	//push to stack with sort (tie conditions not guaranteed)
 	public void push(int mode, int packetType, int blockNum, int delay)
 	{
 		//create Input
@@ -156,26 +226,41 @@ public class InputStack
 	}
 	
 	
-	//test method for the stack
-	private void test()
-	{
-		/*
-		SARAH PLEASE ADD TEST CODE HERE
-		PLEASE TEST:
-					POP
-					PEEK
-					METRIC SHITLOAD OF TESTS FOR PUSH
-		ALSO PLEASE PRINT THE STATE OF INPUTSTACK EACH TIME YOU DO SOMETHING
-		
-		THANKS U THE REAL MVP
-		*/
-	}
-	
-	
+	/*
 	//ONLY USED FOR TESTING
-	public void main(String[] args)
+	public static void main(String[] args)
 	{
-		InputStack inputStack = new InputStack(); 
-		inputStack.test();
+		//(int mode, int packetType, int blockNum, int delay)
+		
+		InputStack inputStack = new InputStack();
+		InputStack stack2 = new InputStack();
+		
+		System.out.println("Testing RRQ priority...");
+		inputStack.push(2, 3, 1, 0);
+		inputStack.push(2, 4, 1, 0);
+		inputStack.push(0, 3, 3, 0);
+		inputStack.push(1, 4, 2, 0);
+		inputStack.push(1, 4, 3, 0);
+		inputStack.push(0, 4, 5, 0);
+		inputStack.push(0, 3, 5, 0);
+		System.out.println(inputStack.toString());
+		System.out.println("Sorting...");
+		inputStack.sortRRQ();
+		System.out.println(inputStack.toString());
+		
+		System.out.println("Testing WRQ priority...");
+		stack2.push(2, 3, 1, 0);
+		stack2.push(2, 4, 1, 0);
+		stack2.push(0, 3, 3, 0);
+		stack2.push(1, 4, 2, 0);
+		stack2.push(1, 4, 3, 0);
+		stack2.push(0, 3, 5, 0);
+		stack2.push(0, 4, 5, 0);
+		System.out.println(stack2.toString());
+		System.out.println("Sorting...");
+		stack2.sortWRQ();
+		System.out.println(stack2.toString());
+		System.out.println("\nTest Complete...");
 	}
+	*/
 }
