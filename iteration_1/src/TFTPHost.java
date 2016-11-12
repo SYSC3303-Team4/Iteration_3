@@ -99,13 +99,11 @@ public class TFTPHost
 	
 	
 	//send datagram
-	private void send(int outPort, DatagramSocket socket, int delay, DatagramPacket toSend) throws SocketException
+	private void send(int outPort, DatagramSocket socket, DatagramPacket toSend)
 	{
 		//prep packet to send
 		console.print("Sending packet...");
-		sentPacket = receivedPacket;
 		toSend.setPort(outPort);
-		socket.setSoTimeout(delay);
 				
 		//print contents
 		if(verbose)
@@ -123,10 +121,10 @@ public class TFTPHost
 			e.printStackTrace();
 			//System.exit(1);
 		}
-		console.print("Packet successfully sent");
-		
-		//reset socket for no timeout
-		socket.setSoTimeout(0);
+		if(verbose)
+		{
+			console.print("Packet successfully sent");
+		}
 	}
 	
 	//receive datagram
@@ -155,7 +153,7 @@ public class TFTPHost
 		console.print("Packet successfully received");
 		if (verbose)
 		{
-			printDatagram(receivedPacket);
+			printDatagram(incommingPacket);
 		}
 		
 		return incommingPacket;
@@ -286,15 +284,24 @@ public class TFTPHost
 		int blockNum = 0;
 		byte packetType = 0;
 		byte[] data;
+		DatagramPacket lastReceivedPacket = null;
 		
 		//wait for original RRQ/WRQ from client
-		receiveDatagram(inSocket);
+		try
+		{
+			lastReceivedPacket = receive(inSocket, 0);
+		}
+		catch (IOException timeout)
+		{
+			console.printError("HOST TIMEOUT WAITING FOR CLIENT RRQ/WRQ");
+		}
+		
 		//save port 
-		clientPort = receivedPacket.getPort();
+		clientPort = lastReceivedPacket.getPort();
 	
 		//determine if this is a valid RRQ/WRQ
 		data = new byte[2];
-		data = receivedPacket.getData();
+		data = lastReceivedPacket.getData();
 		//valid
 		if (data[0] == 0 && (data[1] == 1 || data[1] == 2) )
 		{
@@ -308,11 +315,19 @@ public class TFTPHost
 		}
 		
 		//send RRQ/WRQ to server
-		sendDatagram(SERVER_RECEIVE_PORT, generalServerSocket);
+		send(SERVER_RECEIVE_PORT, generalServerSocket, lastReceivedPacket);
 		
 		//receive 1st packet
-		receiveDatagram(generalServerSocket);
-		serverThreadPort = receivedPacket.getPort();
+		try
+		{
+			lastReceivedPacket = receive(generalServerSocket, 0);
+		}
+		catch(IOException timeout)
+		{
+			console.printError("HOST TIMEOUT WAITING FOR SERVER TO TRANSMIT");
+		}
+		//save port for server thread (use from now on instead of SERVER_RECEIVE_PORT
+		serverThreadPort = lastReceivedPacket.getPort();
 		
 		
 		//do the rest if RRQ
@@ -323,11 +338,11 @@ public class TFTPHost
 				//check if any errors exist [SERVER DATA PACKET]
 				if(inputStack.peek() != null)
 				{
-					data = receivedPacket.getData();
 					//get received packet blockNum and packetType
-					packetType = (receivedPacket.getData())[1];
+					data = lastReceivedPacket.getData();
+					packetType = (lastReceivedPacket.getData())[1];
 					blockNum = ((data[2] & 0xFF) << 8) | (data[3] & 0xFF);
-					System.out.println("blockNum decoded as: " + blockNum);		//DEBUG
+					//System.out.println("blockNum decoded as: " + blockNum);		//DEBUG
 					
 					//check if error needs to be simulated for this packet
 					stackTop = inputStack.peek();
@@ -355,41 +370,46 @@ public class TFTPHost
 							
 							//duplicate SERVER DATA PACKET
 							case(1):
-									//set a buffer of length 2 for packet
-									 DatagramPacket packetToDuplicate = receivedPacket;
-									 DatagramPacket storedAck;
+									
+									//set the packet to be duplicated and save the ack
+									DatagramPacket storedAck = null;
 							
 									//send datagram to clientPort
-									sendDatagram(clientPort, generalClientSocket);
+									send(clientPort, generalClientSocket, lastReceivedPacket);
 									//wait for ACK
-									receiveDatagram(generalClientSocket);
-									storedAck = receivedPacket;
-									sentPacket = packetToDuplicate;
+									try
+									{
+										storedAck = receive(generalClientSocket, 0);
+									}
+									catch(IOException timeout)
+									{
+										console.printError("HOST TIMEOUT WAITING FOR CLIENT TO TRANSMIT");
+										return;
+									}
 									
 									//send duplicate
-									console.print("Sending duplicate to client...");
+									if (verbose)
+									{
+										console.print("Sending duplicate to client...");
+									}
+									send(clientPort, generalClientSocket, lastReceivedPacket);
 									
+									//wait for (lack of) responce
 									try
 									{
 										receiveDatagramTimeout(generalClientSocket, 50);
+										
 										//should never get here
 										console.printError("Client Responds to Duplicate");
-										//System.exit(1);
+										return;
 									}
 									catch (IOException ioe)
 									{
 										if (verbose)
 										{
-											console.print("No response from client with duplicate");
-											try
-											{
-												generalClientSocket.setSoTimeout(0);
-											}
-											catch (SocketException se)
-											{
-												console.printError("Cannot set socket timeout");
-											}
+											console.print("No response from client with duplicate!");
 										}
+										lastReceivedPacket = storedAck; 
 									}
 									break;
 							
@@ -402,29 +422,52 @@ public class TFTPHost
 				}
 				
 				//save packet size if of type DATA
-				if ( (receivedPacket.getData())[1] == 3)
+				if ( (lastReceivedPacket.getData())[1] == 3)
 				{
-					lastDataPacketLength = receivedPacket.getLength();
+					lastDataPacketLength = lastReceivedPacket.getLength();
 				}
+				
 				//send DATA to client
-				sendDatagram(clientPort, generalClientSocket);
+				send(clientPort, generalClientSocket, lastReceivedPacket);
+				
 				//receive client ACK
-				receiveDatagram(generalClientSocket);
+				try
+				{
+					lastReceivedPacket = receive(generalClientSocket, 0);
+				}
+				catch(IOException timeout)
+				{
+					console.printError("HOST TIMEOUT WAITING FOR CLIENT TO TRANSMIT");
+				}
+				
+				//check if any errors exist [CLIENT ACK PACKET]
+				if(inputStack.peek() != null)
+				{
+					//TODO RRQ CLIENT ACK ERRORS
+				}
+				
 				//send ACK to server
-				sendDatagram(serverThreadPort, generalServerSocket);
+				send(serverThreadPort, generalServerSocket, lastReceivedPacket);
 				
 				//receive more data and loop if datagram.size==516
 				//final ack sent to server, data transfer complete
 				if (lastDataPacketLength < MAX_SIZE)
 				{
-					console.print("Data Transfer Complete");
+					console.print("--------------------------RRQ (pull from server) Complete--------------------------");
 					console.println();
 					loop = false;
 				}
 				//more data left, receive and loop back
 				else
 				{
-					receiveDatagram(generalServerSocket);
+					try
+					{
+						lastReceivedPacket = receive(generalServerSocket, 0);
+					}
+					catch (IOException timeout)
+					{
+						console.printError("HOST TIMEOUT WAITING FOR SERVER TO TRANSMIT");
+					}
 				}
 			}
 		}
@@ -466,6 +509,7 @@ public class TFTPHost
 			}
 		}
 	}
+	
 	
 	
 	

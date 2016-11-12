@@ -61,12 +61,14 @@ class TFTPReadThread  extends ServerThread
 	private String threadNumber;
 	public static final byte[] response = {0, 3, 0, 0};
 	private boolean terminate = false;
+	File serverDump;
 	
 
 
 
-	public TFTPReadThread(ThreadGroup group,ConsoleUI transcript, DatagramPacket receivePacketInfo, String thread, Boolean verboseMode) {
+	public TFTPReadThread(ThreadGroup group,ConsoleUI transcript, DatagramPacket receivePacketInfo, String thread, Boolean verboseMode,File filePath) {
 		super(group,thread,transcript);
+		serverDump = filePath;
 		receivePacket = receivePacketInfo;
 		threadNumber  = thread;
 		verbose = verboseMode;
@@ -123,8 +125,9 @@ class TFTPReadThread  extends ServerThread
 				console.print("	Filename: " + new String(filename.toByteArray(),0,filename.toByteArray().length));
 				console.print("	Mode: " + new String(mode.toByteArray(),0,mode.toByteArray().length) + "\n");
 			}
+			String absolutePath = serverDump.getAbsolutePath();
 			
-			File file = new File(filename.toString());
+			File file = new File(absolutePath + "/" + filename.toString());
 			if(file.exists()== false)
 			{
 				buildError(1,receivePacket,verbose);
@@ -133,7 +136,7 @@ class TFTPReadThread  extends ServerThread
 	
 			TFTPReader reader = new TFTPReader();
 			try {
-				reader.readAndSplit(filename.toString());
+				reader.readAndSplit(file.toString());
 	
 			} catch (FileNotFoundException e1) {
 				buildError(1,receivePacket,verbose);
@@ -214,7 +217,7 @@ class TFTPReadThread  extends ServerThread
 						/* Exit Gracefully if the stop is requested. */
 						if(isInterrupted()){continue;}
 						if(verbose){
-						console.print("Server: packet sent using port " + sendReceiveSocket.getLocalPort()+"/n");
+						console.print("Server: packet sent using port " + sendReceiveSocket.getLocalPort()+"\n");
 						}
 				}
 				duplicateACK = false;

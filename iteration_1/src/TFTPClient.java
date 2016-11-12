@@ -93,7 +93,7 @@ public class TFTPClient extends JFrame
 {
 	//declaring local instance variables
 	private DatagramPacket sentPacket;
-	private DatagramPacket receivedPacket;
+	private DatagramPacket recievedPacket;
 	private DatagramSocket generalSocket;
 	private boolean verbose;
 	private int outPort;
@@ -104,27 +104,16 @@ public class TFTPClient extends JFrame
 	private File file;
 	private JFileChooser fileChooser;
 	private ConsoleUI console;
-	private int blockNum = 0;
-	private boolean duplicateACK = false;
-	private boolean retransmitACK = false;
-	private boolean retransmitDATA = false;
-	
-	//INIT socket timeout variables
-	protected static final int TIMEOUT = 5; //Seconds
-	protected static final int MAX_TIMEOUTS = 5;
-	protected int timeouts = 0;
 	
 	//declaring local class constants
 	private static final int IN_PORT_HOST = 23;
 	private static final int IN_PORT_SERVER = 69;
 	private static final int MAX_SIZE = 512;
-	private static final int DATA_OFFSET = 4;
 	private static final String DEFAULT_MODE = "ASCII";
 	private static final byte[] OPCODE_RRQ =  {0,1}; 
 	private static final byte[] OPCODE_WRQ =  {0,2};
 	private static final byte[] OPCODE_DATA = {0,3};
 	private static final byte[] OPCODE_ACK = {0,4};
-	
 	
 	
 	//generic constructor
@@ -142,9 +131,9 @@ public class TFTPClient extends JFrame
 			System.exit(1);
 		}
 		//initialize echo --> off
-		verbose = true;
+		verbose = false;
 		//initialize test mode --> off
-		outPort = IN_PORT_HOST ;
+		outPort = IN_PORT_SERVER ;
 		//make an empty reader
 		reader = new TFTPReader();
 		//make an empty writer
@@ -161,9 +150,9 @@ public class TFTPClient extends JFrame
 	{
 		return sentPacket;
 	}
-	public DatagramPacket getreceivedPacket()
+	public DatagramPacket getRecievedPacket()
 	{
-		return receivedPacket;
+		return recievedPacket;
 	}
 	
 	
@@ -226,7 +215,7 @@ public class TFTPClient extends JFrame
 		//byte[] data = reader.pop();
 		byte[] toSend = new byte[data.length + 4];
 		
-		//construct array
+		//constuct array
 		for(int i=0; i<2; i++)
 		{
 			toSend[i] = OPCODE_DATA[i];
@@ -361,7 +350,7 @@ public class TFTPClient extends JFrame
 	public void sendWRQ(String file, String mode)
 	{
 		//initial
-
+		int blockNum = 1;
 		int oldPort = outPort; 
 		int lastDATAPacketLength = 0;
 		
@@ -384,27 +373,24 @@ public class TFTPClient extends JFrame
 		//wait for ACK
 		receiveACK();
 		//change port to wherever ACK came from 
-		outPort = receivedPacket.getPort();
+		outPort = recievedPacket.getPort();
 		
 		//send DATA
 		while ( !(reader.isEmpty())  || lastDATAPacketLength == MAX_SIZE+4)
 		{
-			if(!duplicateACK){ 
-				
-				//send DATA
-				if(reader.isEmpty())
-				{
-					generate0Data(blockNum);
-				}
-				else
-				{
-					generateData(blockNum);
-				}
-				lastDATAPacketLength = sentPacket.getLength();
-				sendPacket();
-				//blockNum++;
 			
+			//send DATA
+			if(reader.isEmpty())
+			{
+				generate0Data(blockNum);
 			}
+			else
+			{
+				generateData(blockNum);
+			}
+			lastDATAPacketLength = sentPacket.getLength();
+			sendPacket();
+			blockNum++;
 			
 			//wait for ACK
 			receiveACK();
@@ -412,8 +398,6 @@ public class TFTPClient extends JFrame
 		
 		//reset port
 		outPort = oldPort;
-		blockNum = 0;
-		console.print("----------------------WRQ COMPLETE----------------------");
 	}
 	
 	
@@ -442,48 +426,31 @@ public class TFTPClient extends JFrame
 	
 	//receive ACK
 	public void receiveACK()
-	{	
-
-		//Encode the block number into the response block 
-		byte[] blockArray = new byte[2];
-		blockArray[1]=(byte)(blockNum & 0xFF);
-		blockArray[0]=(byte)((blockNum >> 8)& 0xFF);
+	{		
+		//receive ACK
+		receivePacket("ACK");
 		
-
-			//receive ACK
-			receivePacket("ACK");
-			
-			if(!retransmitACK){
-				//analyze ACK for format
-				if (verbose)
-				{
-					console.print("Client: Checking ACK...");
-				}
-				byte[] data = receivedPacket.getData();
-				
-				//check ACK for validity
-				if(data[0] == 0 && data[1] == 4){
-					
-					//Check if the blockNumber corresponds to the expected blockNumber
-					if(blockArray[1] == data[3] && blockArray[0] == data[2]){
-						blockNum++;
-					}
-					else{
-						duplicateACK = true;
-					}
-				}
-				else{
-					//ITERATION 5 ERROR
-					//Invalid TFTP code
-				}
-			}
+		//analyze ACK for format
+		if (verbose)
+		{
+			console.print("Client: Checking ACK...");
+		}
+		byte[] data = recievedPacket.getData();
 		
+		//check ACK for validity
+		// _________________PUT CODE HERE_____________
 	}
 	
 	
 	//receive data and save
 	public void sendRRQ(String file, String mode)
 	{
+		//declaring local variables
+		byte[] rawData;
+		byte[] procData;
+		boolean loop = true;
+		int currBlockNum = 0;
+		int lastBlockNum = 0;
 		int oldPort = outPort;
 		
 		//send read request
@@ -491,31 +458,30 @@ public class TFTPClient extends JFrame
 		sendPacket();
 		
 		//receive loop for data
-		byte[] rawData;
-		byte[] procData;
-		boolean loop = true;
-		
 		while(loop)
 		{
-			byte[] blockNumByte = new byte[2];
-			blockNumByte[1]=(byte)(blockNum & 0xFF);
-			blockNumByte[0]=(byte)((blockNum >> 8)& 0xFF);
 			//receive data
 			receivePacket("DATA");
-			if(!retransmitDATA){
-				outPort = receivedPacket.getPort();
-				
-				//Process data
-				rawData = new byte[receivedPacket.getLength()] ;
-				rawData = receivedPacket.getData();
-				procData = new byte[receivedPacket.getLength() - DATA_OFFSET];
-	
-				int reLen = receivedPacket.getLength(); 
-				for(int i=0; i<reLen-DATA_OFFSET; i++)
-				{
-					procData[i] = rawData[i+DATA_OFFSET];
-				}
-				
+			console.print("RP = " +recievedPacket.getPort());
+			outPort = recievedPacket.getPort();
+			console.print("OP = " +outPort);
+			
+			//Process data
+			rawData = new byte[recievedPacket.getLength()] ;
+			rawData = recievedPacket.getData();					
+			procData = new byte[recievedPacket.getLength() - 4];
+			byte[] blockNum = new byte[2];
+			for(int i=0; i<recievedPacket.getLength()-4; i++)
+			{
+				procData[i] = rawData[i+4];
+			}
+			//extract and convert block num
+			currBlockNum = ((rawData[2] & 0xFF) << 8) | (rawData[3] & 0xFF);
+			System.out.println("currBlockNum as: " +  currBlockNum);
+			
+			//current block is one greater than previous block num
+			if (currBlockNum == lastBlockNum+1)
+			{
 				//save data
 				try
 				{
@@ -532,22 +498,36 @@ public class TFTPClient extends JFrame
 					System.exit(1);
 				}
 				
+				//update lastBlockNum
+				lastBlockNum = currBlockNum;
+				
 				//check to see if this is final packet
-				if (receivedPacket.getLength() < MAX_SIZE+4)	
+				console.print(""+rawData.length);
+				console.print(""+recievedPacket.getLength());
+				if (recievedPacket.getLength() < MAX_SIZE+4)	
 				{
 					loop = false;
 				}
 				
 				//get block num
-				blockNumByte[0] = rawData[2];
-				blockNumByte[1] = rawData[3];
+				blockNum[0] = rawData[2];
+				blockNum[1] = rawData[3];
+				
+				//send out ACK and prep for more data
+				generateACK(blockNum);
+				sendPacket();
 			}
-			//send out ACK and prep for more data
-			generateACK(blockNumByte);
-			sendPacket();
+			//this is not the next block we need
+			else
+			{
+				if (verbose)
+				{
+					console.print("Data block: " + currBlockNum + " received. Excpected: " + lastBlockNum+1);
+					console.print("Data block ingored");
+				}
+			}
+
 		}
-		
-		console.print("----------------------RRQ COMPLETE----------------------");
 		outPort = oldPort;
 	}
 	
@@ -557,7 +537,7 @@ public class TFTPClient extends JFrame
 	{	
 		//prep for response
 		byte[] response = new byte[MAX_SIZE+4];
-		receivedPacket = new DatagramPacket(response, response.length);
+		recievedPacket = new DatagramPacket(response, response.length);
 		
 		//wait for response
 		if (verbose)
@@ -566,38 +546,22 @@ public class TFTPClient extends JFrame
 		}
 		try
 		{
-			generalSocket.receive(receivedPacket);			
+			generalSocket.receive(recievedPacket);			
 		}
 		catch(IOException e)
 		{
-			if (e instanceof SocketTimeoutException){
-				//Retransmit every timeout
-				//Quite after 5 timeouts
-				timeouts++;
-				if(timeouts == 5){
-					close();
-				}
-				if(type == "ACK"){
-					retransmitACK = true;
-				}
-				else{
-					retransmitDATA = true;
-				}
-			}
-			else{					
-				e.printStackTrace();
-				System.exit(1);
-			}
+			e.printStackTrace();
+			System.exit(1);
 		}
 		if (verbose)
 		{
 			console.print("Client: " + type + " packet received");
-			printDatagram(receivedPacket);
+			printDatagram(recievedPacket);
 		}
 		
 		//check for errors
 		byte errorType=response[3];
-		response = receivedPacket.getData();
+		response = recievedPacket.getData();
 		if(response[0] == 0 && response[1] == 5)
 		{
 			switch(errorType)

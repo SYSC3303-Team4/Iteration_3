@@ -35,7 +35,7 @@ public class TFTPServer implements ActionListener
 	private static Scanner scan= new Scanner(System.in);
 	private ConsoleUI console;
     private JTextArea fileChooserFrame;
-	private File file;
+	private File filePath;
 	private JFileChooser fileChooser;
     private String path= "DEFAULT_TEST_WRITE";
     
@@ -75,7 +75,7 @@ public class TFTPServer implements ActionListener
 		fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 		int result = fileChooser.showOpenDialog(fileChooser);
 		if (result == JFileChooser.APPROVE_OPTION) {//file is found
-		    file = fileChooser.getSelectedFile();//get file name
+		    filePath = fileChooser.getSelectedFile();//get file name
 		}
 	}
 	
@@ -166,12 +166,12 @@ public class TFTPServer implements ActionListener
 			// Create a response.
 			if (req==Request.READ) { // for Read it's 0301
 				threadNum++;
-				Thread readRequest =  new TFTPReadThread(initializedThreads,console, receivePacket, "Thread "+threadNum, verbose);
+				Thread readRequest =  new TFTPReadThread(initializedThreads,console, receivePacket, "Thread "+threadNum, verbose,filePath);
 				readRequest.start();
 				response = readResp;
 			} else if (req==Request.WRITE) { // for Write it's 0400
 				threadNum++;
-				Thread writeRequest =  new TFTPWriteThread(initializedThreads,console, receivePacket,"Thread "+threadNum, verbose,file);
+				Thread writeRequest =  new TFTPWriteThread(initializedThreads,console, receivePacket,"Thread "+threadNum, verbose,filePath);
 				writeRequest.start();
 				response = writeResp;
 			} else { // it was invalid, just quit
