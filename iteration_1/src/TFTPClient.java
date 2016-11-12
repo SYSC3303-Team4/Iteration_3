@@ -478,6 +478,7 @@ public class TFTPClient extends JFrame
 			//extract and convert block num
 			currBlockNum = ((rawData[2] & 0xFF) << 8) | (rawData[3] & 0xFF);
 			System.out.println("currBlockNum as: " +  currBlockNum);
+			System.out.println("lastBlockNum as: " +  lastBlockNum);
 			
 			//current block is one greater than previous block num
 			if (currBlockNum == lastBlockNum+1)
