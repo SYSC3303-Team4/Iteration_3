@@ -344,6 +344,12 @@ public class TFTPHost
 					blockNum = ((data[2] & 0xFF) << 8) | (data[3] & 0xFF);
 					//System.out.println("blockNum decoded as: " + blockNum);		//DEBUG
 					
+					//save packet size if of type DATA
+					if ( (lastReceivedPacket.getData())[1] == 3)
+					{
+						lastDataPacketLength = lastReceivedPacket.getLength();
+					}
+					
 					//check if error needs to be simulated for this packet
 					stackTop = inputStack.peek();
 					if(stackTop.getBlockNum() == blockNum && stackTop.getPacketType() == packetType)
@@ -424,26 +430,18 @@ public class TFTPHost
 				//no errors to simulate
 				else
 				{
+					//send DATA to client
+					send(clientPort, generalClientSocket, lastReceivedPacket);
 					
-				}
-				
-				//save packet size if of type DATA
-				if ( (lastReceivedPacket.getData())[1] == 3)
-				{
-					lastDataPacketLength = lastReceivedPacket.getLength();
-				}
-				
-				//send DATA to client
-				send(clientPort, generalClientSocket, lastReceivedPacket);
-				
-				//receive client ACK
-				try
-				{
-					lastReceivedPacket = receive(generalClientSocket, 0);
-				}
-				catch(IOException timeout)
-				{
-					console.printError("HOST TIMEOUT WAITING FOR CLIENT TO TRANSMIT");
+					//receive client ACK
+					try
+					{
+						lastReceivedPacket = receive(generalClientSocket, 0);
+					}
+					catch(IOException timeout)
+					{
+						console.printError("HOST TIMEOUT WAITING FOR CLIENT TO TRANSMIT");
+					}
 				}
 				
 				//check if any errors exist [CLIENT ACK PACKET]
@@ -451,9 +449,12 @@ public class TFTPHost
 				{
 					//TODO RRQ CLIENT ACK ERRORS
 				}
+				else
+				{
+					//send ACK to server
+					send(serverThreadPort, generalServerSocket, lastReceivedPacket);
+				}
 				
-				//send ACK to server
-				send(serverThreadPort, generalServerSocket, lastReceivedPacket);
 				
 				//receive more data and loop if datagram.size==516
 				//final ack sent to server, data transfer complete
