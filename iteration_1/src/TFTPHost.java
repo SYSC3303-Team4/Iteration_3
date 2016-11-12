@@ -278,7 +278,7 @@ public class TFTPHost
 		
 		//declaring local variables
 		byte RWReq=0;
-		boolean loop=true;
+		boolean loopFlag=true;
 		int lastDataPacketLength=0;
 		Input stackTop = null;
 		int blockNum = 0;
@@ -329,12 +329,18 @@ public class TFTPHost
 		//save port for server thread (use from now on instead of SERVER_RECEIVE_PORT
 		serverThreadPort = lastReceivedPacket.getPort();
 		
+		//save length of DATA
+		if ( (lastReceivedPacket.getData())[1] == 3)
+		{
+			lastDataPacketLength = lastReceivedPacket.getLength();
+		}
+		
 		
 		//do the rest if RRQ
 		if(RWReq == 1)
 		{
-			while(loop)
-			{
+			while(loopFlag)
+			{	
 				//check if any errors exist [SERVER DATA PACKET]
 				if(inputStack.peek() != null)
 				{
@@ -368,7 +374,7 @@ public class TFTPHost
 									*/
 									break;
 							
-							//duplicate SERVER DATA PACKET
+							//duplicate packet
 							case(1):
 									
 									//set the packet to be duplicated and save the ack
@@ -421,30 +427,30 @@ public class TFTPHost
 						}
 					}
 				}
-				//no errors to simulate
+				//send [SERVER DATA PACKET]
 				else
 				{
+					//send DATA to client
+					send(clientPort, generalClientSocket, lastReceivedPacket);
 					
+					//receive client ACK
+					try
+					{
+						lastReceivedPacket = receive(generalClientSocket, 0);
+					}
+					catch(IOException timeout)
+					{
+						console.printError("HOST TIMEOUT WAITING FOR CLIENT TO TRANSMIT");
+					}
 				}
 				
-				//save packet size if of type DATA
-				if ( (lastReceivedPacket.getData())[1] == 3)
+				//STATE: currently holding ACK X from client
+				//check if we need to loop again to receive more data
+				if (lastDataPacketLength < MAX_SIZE)
 				{
-					lastDataPacketLength = lastReceivedPacket.getLength();
+					loopFlag = false;
 				}
-				
-				//send DATA to client
-				send(clientPort, generalClientSocket, lastReceivedPacket);
-				
-				//receive client ACK
-				try
-				{
-					lastReceivedPacket = receive(generalClientSocket, 0);
-				}
-				catch(IOException timeout)
-				{
-					console.printError("HOST TIMEOUT WAITING FOR CLIENT TO TRANSMIT");
-				}
+
 				
 				//check if any errors exist [CLIENT ACK PACKET]
 				if(inputStack.peek() != null)
@@ -455,13 +461,11 @@ public class TFTPHost
 				//send ACK to server
 				send(serverThreadPort, generalServerSocket, lastReceivedPacket);
 				
-				//receive more data and loop if datagram.size==516
-				//final ack sent to server, data transfer complete
-				if (lastDataPacketLength < MAX_SIZE)
+				//print final message if transfer complete
+				if (!loopFlag)
 				{
 					console.print("--------------------------RRQ (pull from server) Complete--------------------------");
 					console.println();
-					loop = false;
 				}
 				//more data left, receive and loop back
 				else
@@ -480,7 +484,7 @@ public class TFTPHost
 		//do the rest if WRQ
 		else
 		{
-			while(loop)
+			while(loopFlag)
 			{
 				//send ACK to client
 				sendDatagram(clientPort, generalClientSocket);
@@ -504,7 +508,7 @@ public class TFTPHost
 					//terminate transfer
 					console.print("Data Transfer Complete");
 					console.println();
-					loop = false;
+					loopFlag = false;
 				}
 				//there are still DATA packets to pass, transfer not compelte 
 				else
@@ -747,7 +751,7 @@ public class TFTPHost
 					break;
 			}
 		}
-	}
+	} 
 
 	
 	public static void main(String[] args) 
