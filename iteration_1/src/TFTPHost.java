@@ -411,6 +411,7 @@ public class TFTPHost
 										}
 										lastReceivedPacket = storedAck; 
 									}
+									//STATE IS NOW WHERE HOST NEEDS TO SEND ACK TO SERVER
 									break;
 							
 							//loose
@@ -419,6 +420,11 @@ public class TFTPHost
 									break;
 						}
 					}
+				}
+				//no errors to simulate
+				else
+				{
+					
 				}
 				
 				//save packet size if of type DATA

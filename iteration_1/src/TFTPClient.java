@@ -502,8 +502,6 @@ public class TFTPClient extends JFrame
 				lastBlockNum = currBlockNum;
 				
 				//check to see if this is final packet
-				console.print(""+rawData.length);
-				console.print(""+recievedPacket.getLength());
 				if (recievedPacket.getLength() < MAX_SIZE+4)	
 				{
 					loop = false;
