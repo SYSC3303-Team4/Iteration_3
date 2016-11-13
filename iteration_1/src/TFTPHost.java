@@ -44,7 +44,7 @@ public class TFTPHost
 	private ConsoleUI console;
 	private InputStack inputStack = new InputStack();
 	
-	    
+	      
 	//sarah var
 	DatagramPacket nextGram=null;
 	private boolean needSend=true;
